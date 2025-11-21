@@ -377,3 +377,105 @@ Content-Type: application/json
 **Joseph Steven Linares Gutierrez**
 
 ---
+
+
+# Extensión del Parcial
+
+## Resumen de las ampliaciones
+
+En este parcial se extendi la API original del preparcial con tres funcionalidades clave;
+
+1. **Endpoint de eliminación de países**: Se implementó un endpoint `DELETE /countries/:code` que permite eliminar países del caché local. Incluye validacione para garantizar la integridad: verifica que el país exista en la base de datos y que no tenga planes de viaje asociados antes de eliminar. (Esto dificultó las pruebas durante la realización del parcial)
+
+2. **Guard de autorización**: Se desarrollo un guard personalizado (`DeleteAuthGuard`) que protege el endpoint de eliminación mediante validación de token. Solo las peticiones que incluyen el header de x-api-token con el valor correcto pueden ejecutar operaciones de borrado.
+
+3. **Middleware de logging**: Se implementó un middleware global que registra automaticamente todas las peticiones a las rutas `/countries` y `/travel-plans`. Este captura información detallada de cada peticion y la muestra segun el formato usado en dl codigo.
+
+---
+
+## Endpoint protegido - DELETE /countries/:code
+### Funcionamiento
+
+El endpoint permite eliminar un país de la cach local siguiendo este flujo:
+
+1. Validación del token: El `DeleteAuthGuard` toma la petición y verifica el header `x-api-token` (toca ponerlo en header pa que funcione).
+2. Verificación de existencia: Se busca el país en la base de datos por su código YYY o aplpha-3.
+3. Validación de integridad: Se verifica que no existan planes de viaje asociados al país.
+4. Eliminacion: Si todas los pasos anteriores son validos, el país se elimina de la base de datos.
+
+### Cómo validar
+
+Caso 1: Token inválido (Error 401)
+```http
+DELETE http://localhost:3000/countries/FRA
+x-api-token: token-xd
+```
+Resultado esperado: 401, Invalid authorization token
+
+Caso 2: País con planes asociados (Error 400)
+```http
+DELETE http://localhost:3000/countries/COL
+x-api-token: mi-token-secreto-2025
+```
+Resultado esperado: 400
+
+Caso 3: Eliminación exitosa (200)
+```http
+DELETE http://localhost:3000/countries/JPN
+x-api-token: mi-token-secreto-2024
+```
+Resultado esperado: Country JPN has been successfully deleted from
+
+
+## Guard de autorización
+### Funcionamiento
+
+El `DeleteAuthGuard` usa la interfaz `CanActivate` y valida:
+
+1. Extrae el header: Lee el valor de `x-api-token` de los headers de la petición.
+2. Valida presencia: Verifica que l token esté presente; si no, lanza Exception.
+3. Valida valor: Compara el token recibido con el token valdo configurado (`mi-token-secreto-2025`).
+4. Autoriza o rechaza: Retorna `true` si el token es válido, o lanza excepción si no lo es.
+
+### Cómo validar
+
+**Token**: `mi-token-secreto-2025`
+
+Prueba 1: Verificar que requiere token
+```http
+DELETE http://localhost:3000/countries/USA
+```
+Debería fallar con 401.
+
+Prueba 2: Verificar token valido
+```http
+DELETE http://localhost:3000/countries/USA
+x-api-token: mi-token-secreto-2025
+```
+Debería mostrar la eliminación (200 OK).
+
+---
+
+## Middleware de logging
+### Funcionamiento
+
+El Middelware intercepta todas las peticiones a las rutas configuradas (`/countries` y `/travel-plans`) y registra información relevante:
+
+1. Captura inicio: Registra el tiempo de inicio.
+2. Escucha finalización: Espera al evento `finish` de la respuesta para capturar el momento en que termina.
+3. Calcula tiempo: Resta el tiempo de inicio y el final .
+4. Registra info: Usa el logger pa imprimir.
+
+### Cómo validar
+
+Prueba 1: Verificar logging en GET /countries
+```http
+GET http://localhost:3000/countries
+```
+
+Si enn la consola se ve algo como:
+```
+[API] GET /countries - Status: 200 - Time: 45ms
+```
+
+Es porque funcionó.

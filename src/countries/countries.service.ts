@@ -1,4 +1,4 @@
-import { Injectable, Inject, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Inject, HttpException, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Country } from './entities/country.entity';
@@ -26,7 +26,7 @@ export class CountriesService {
     }));
   }
 
-  // Buscar país por código con lógica de caché
+  // Buscar el pais
   async findByCode(code: string): Promise<CountryResponseDto> {
     const upperCode = code.toUpperCase();
 
@@ -81,4 +81,33 @@ export class CountriesService {
         source: 'external',
     };
     }
+
+  // Eliminar un pais del cache
+  async remove(code: string): Promise<{ message: string }> {
+    const upperCode = code.toUpperCase();
+
+    // Verifica que el pais existe
+    const country = await this.countryRepository.findOne({
+      where: { code: upperCode },
+      relations: ['travelPlans'],
+    });
+
+    if (!country) {
+      throw new NotFoundException(`Country with code ${upperCode} not found in cache`);
+    }
+
+    // Verifica que no tenga planes asociado
+    if (country.travelPlans && country.travelPlans.length > 0) {
+      throw new BadRequestException(
+        `Cannot delete country ${upperCode}. It has ${country.travelPlans.length} associated travel plan(s)`
+      );
+    }
+
+    // Elimina
+    await this.countryRepository.remove(country);
+
+    return {
+      message: `Country ${upperCode} has been successfully deleted from cache`,
+    };
+  }
 }
